@@ -1,0 +1,126 @@
+<Window x:Class="SqlFalsifier.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SQL Falsifier" Height="760" Width="1240"
+        WindowStartupLocation="CenterScreen"
+        Background="#FFF3F4F6">
+
+    <DockPanel Margin="10">
+
+        <!-- ===== status bar ===== -->
+        <StatusBar DockPanel.Dock="Bottom" Margin="0,8,0,0" Background="Transparent">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready." Foreground="#FF505A64" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- ===== toolbar ===== -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="FalsifyButton" Click="OnFalsify" MinWidth="110" FontWeight="SemiBold">_Falsify</Button>
+            <Button Click="OnRestore" ToolTip="Turn a falsified script back into the original one, using the mapping below.">_Restore</Button>
+            <Border Width="1" Background="#FFD0D5DA" Margin="6,3" />
+            <TextBlock Text="Seed" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox x:Name="SeedBox" Width="90" VerticalContentAlignment="Center" Margin="0,0,6,0" Text="20260806" />
+            <Button Click="OnNewSeed" ToolTip="Pick a new random seed and rebuild the whole mapping.">New seed</Button>
+            <Button Click="OnResetMapping" ToolTip="Forget every real/fake pair.">Reset map</Button>
+            <Border Width="1" Background="#FFD0D5DA" Margin="6,3" />
+            <Button Click="OnOpenFile">Open...</Button>
+            <Button Click="OnSaveOutput">Save output...</Button>
+            <Button Click="OnCopyOutput">Copy output</Button>
+            <Button Click="OnExportMapping" ToolTip="Export the real/fake pairs as CSV.">Export map</Button>
+        </StackPanel>
+
+        <!-- ===== options ===== -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="#FFDCE0E5" BorderThickness="1"
+                CornerRadius="3" Padding="10,8" Margin="0,0,0,8">
+            <StackPanel>
+                <WrapPanel>
+                    <CheckBox x:Name="SplitCompoundCheck" IsChecked="True"
+                              ToolTip="DateFacture is mapped as Date + Facture, so the word Facture stays consistent everywhere.">
+                        Split compound names (PascalCase / snake_case)
+                    </CheckBox>
+                    <CheckBox x:Name="RenameVariablesCheck" IsChecked="True"
+                              ToolTip="@@ROWCOUNT and other system variables are never touched.">
+                        Rename @variables and #temp tables
+                    </CheckBox>
+                    <CheckBox x:Name="RenameFunctionsCheck" IsChecked="False"
+                              ToolTip="Off by default so an unrecognised built-in function is not mangled.">
+                        Rename user function names
+                    </CheckBox>
+                </WrapPanel>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="Keep these words:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Column="1" x:Name="PreservedWordsBox" Text="Id, Fk, Pk, Uk" Margin="0,0,16,0"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Kept as-is inside identifiers, so IdClient becomes IdBazor." />
+                    <TextBlock Grid.Column="2" Text="Keep these names:" VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBox Grid.Column="3" x:Name="PreservedNamesBox" Text="dbo, sys, INFORMATION_SCHEMA, guest"
+                             VerticalContentAlignment="Center"
+                             ToolTip="Whole identifiers never renamed (schemas, linked servers...)." />
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== editors + mapping ===== -->
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="3*" MinHeight="150" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="1.4*" MinHeight="110" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Text="Original SQL" />
+                    <TextBox x:Name="InputBox" Style="{StaticResource SqlBox}" />
+                </DockPanel>
+
+                <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+                <DockPanel Grid.Column="2">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Text="Falsified SQL" />
+                    <TextBox x:Name="OutputBox" Style="{StaticResource SqlBox}" Background="#FFFBFBFD" />
+                </DockPanel>
+            </Grid>
+
+            <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <DockPanel Grid.Row="2">
+                <Grid DockPanel.Dock="Top">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Style="{StaticResource SectionHeader}"
+                               Text="Mapping (edit the fake column to force a name, then hit Falsify again)" />
+                    <TextBox Grid.Column="1" x:Name="FilterBox" Width="200" HorizontalAlignment="Right"
+                             Margin="0,0,0,4" VerticalContentAlignment="Center"
+                             TextChanged="OnFilterChanged" ToolTip="Filter the mapping." />
+                </Grid>
+                <DataGrid x:Name="MappingGrid" AutoGenerateColumns="False" CanUserAddRows="False"
+                          CanUserDeleteRows="False" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#FFE8EAED" BorderBrush="#FFC8CDD3" RowHeaderWidth="0"
+                          AlternatingRowBackground="#FFFAFAFC">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Real word" Binding="{Binding Real}" IsReadOnly="True" Width="*" />
+                        <DataGridTextColumn Header="Fake word" Binding="{Binding Fake, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                        <DataGridTextColumn Header="Uses" Binding="{Binding Count}" IsReadOnly="True" Width="60" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Grid>
+
+    </DockPanel>
+</Window>
